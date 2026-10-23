@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agendador de tarefas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root {
+  --bg: #f2f5f3; --card: #ffffff; --ink: #1d2926; --muted: #7b8884;
+  --line: #dde3e0; --accent: #1f6f5b; --on-accent: #ffffff; --done: #a8b4af;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131a18; --card: #1b2421; --ink: #e8efec; --muted: #8b9893;
+    --line: #2a3531; --accent: #4fb89d; --on-accent: #0e1614; --done: #55625d;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131a18; --card: #1b2421; --ink: #e8efec; --muted: #8b9893;
+  --line: #2a3531; --accent: #4fb89d; --on-accent: #0e1614; --done: #55625d;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "DM Sans", system-ui, sans-serif; line-height: 1.4;
+}
+main { max-width: 520px; margin: 0 auto; padding: 28px 20px 120px; }
+h1 { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; text-transform: capitalize; }
+.progresso { margin: 14px 0 28px; color: var(--muted); font-size: 0.95rem; }
+.barra { height: 4px; background: var(--line); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.barra i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+
+.tarefa { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.marca {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; padding: 0;
+  border: 2px solid var(--muted); background: transparent; color: var(--on-accent);
+  display: grid; place-items: center; cursor: pointer;
+}
+.marca svg { width: 16px; height: 16px; opacity: 0; }
+.marca:focus-visible, .corpo:focus-visible, .add:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.feita .marca { background: var(--accent); border-color: var(--accent); }
+.feita .marca svg { opacity: 1; }
+.corpo { flex: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.nome { font-weight: 500; font-size: 1.05rem; }
+.meta { color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
+.obs { color: var(--muted); font-size: 0.9rem; margin-top: 4px; white-space: pre-wrap; }
+.feita .nome { text-decoration: line-through; color: var(--done); }
+.feita .meta, .feita .obs { color: var(--done); }
+.vazio { color: var(--muted); padding: 32px 0; }
+
+.add {
+  position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); font-size: 2rem; line-height: 1;
+}
+.fundo { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-end; justify-content: center; }
+.fundo.aberto { display: flex; }
+.folha {
+  width: 100%; max-width: 520px; background: var(--card); border-radius: 18px 18px 0 0;
+  padding: 22px 20px calc(22px + env(safe-area-inset-bottom, 0px)); max-height: 92%; overflow-y: auto;
+}
+.folha h2 { margin: 0 0 16px; font-size: 1.2rem; }
+label { display: block; font-size: 0.88rem; color: var(--muted); margin: 14px 0 6px; }
+input, textarea {
+  width: 100%; font: inherit; font-size: 1rem; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+}
+textarea { min-height: 70px; resize: vertical; }
+.dias { display: flex; flex-wrap: wrap; gap: 8px; }
+.dia { font: inherit; font-size: 0.9rem; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.dia.ligado { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.dica { font-size: 0.82rem; color: var(--muted); margin-top: 8px; }
+.acoes { display: flex; gap: 10px; margin-top: 22px; }
+.acoes button { flex: 1; font: inherit; font-weight: 500; padding: 13px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.acoes .salvar { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.acoes .excluir { color: #c0392b; }
+@media (prefers-reduced-motion: reduce) { .barra i { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="titulo"></h1>
+  <div class="progresso"><span id="contagem"></span><div class="barra"><i id="barra"></i></div></div>
+  <div id="lista"></div>
+</main>
+
+<button class="add" id="btnAdd" aria-label="Nova tarefa">+</button>
+
+<div class="fundo" id="fundo">
+  <div class="folha" role="dialog" aria-labelledby="tituloForm">
+    <h2 id="tituloForm">Nova tarefa</h2>
+    <label for="fNome">Nome</label>
+    <input id="fNome" maxlength="80" placeholder="Ex.: tirar o lixo">
+    <label for="fHora">Hora</label>
+    <input id="fHora" type="time">
+    <label for="fObs">Observações</label>
+    <textarea id="fObs"></textarea>
+    <label>Repetir</label>
+    <div class="dias" id="fDias"></div>
+    <div class="dica">Sem nenhum dia marcado, a tarefa vale só para hoje.</div>
+    <div class="acoes">
+      <button class="excluir" id="btnExcluir">Excluir</button>
+      <button class="salvar" id="btnSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 1. DADOS =====
+   tarefas: lista de tarefas cadastradas
+     { id, nome, hora, obs, dias: [0..6], data }
+     dias = dias da semana em que repete (0 = domingo ... 6 = sábado)
+     data = dia único, usado quando a tarefa não repete
+   feitas: guarda o que foi concluído em cada dia
+     { "2026-10-23": [id1, id2] }
+   Assim a tarefa fixa continua existindo, e só a conclusão muda a cada dia. */
+let tarefas = [];
+let feitas = {};
+let editandoId = null;
+const NOMES_DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+function carregar() {
+  try {
+    tarefas = JSON.parse(localStorage.getItem('tarefas') || '[]');
+    feitas = JSON.parse(localStorage.getItem('feitas') || '{}');
+  } catch (e) { tarefas = []; feitas = {}; }
+}
+function salvar() {
+  try {
+    localStorage.setItem('tarefas', JSON.stringify(tarefas));
+    localStorage.setItem('feitas', JSON.stringify(feitas));
+  } catch (e) { /* sem armazenamento: o app funciona, mas não guarda */ }
+}
+
+/* ===== 2. FUNÇÕES AUXILIARES ===== */
+const hoje = () => new Date().toLocaleDateString('sv'); // formato AAAA-MM-DD
+const $ = (id) => document.getElementById(id);
+const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function tarefasDeHoje() {
+  const diaSemana = new Date().getDay();
+  return tarefas
+    .filter((t) => (t.dias.length ? t.dias.includes(diaSemana) : t.data === hoje()))
+    .sort((a, b) => (a.hora || '99:99').localeCompare(b.hora || '99:99'));
+}
+
+/* ===== 3. TELA DO DIA ===== */
+function desenhar() {
+  $('titulo').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const lista = tarefasDeHoje();
+  const feitasHoje = feitas[hoje()] || [];
+  const total = lista.length;
+  const concluidas = lista.filter((t) => feitasHoje.includes(t.id)).length;
+
+  $('contagem').textContent = total ? concluidas + ' de ' + total + ' feitas' : 'Nenhuma tarefa hoje';
+  $('barra').style.width = total ? (concluidas / total) * 100 + '%' : '0';
+
+  if (!total) {
+    $('lista').innerHTML = '<div class="vazio">Dia livre. Toque em + para adicionar uma tarefa.</div>';
+    return;
+  }
+  $('lista').innerHTML = lista.map((t) => {
+    const feita = feitasHoje.includes(t.id);
+    const repete = t.dias.length ? t.dias.map((d) => NOMES_DIAS[d]).join(', ') : '';
+    const meta = [t.hora, repete].filter(Boolean).join('  ·  ');
+    return '<div class="tarefa' + (feita ? ' feita' : '') + '">' +
+      '<button class="marca" data-marcar="' + t.id + '" aria-label="Marcar como feita">' +
+        '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg></button>' +
+      '<button class="corpo" data-editar="' + t.id + '">' +
+        '<div class="nome">' + esc(t.nome) + '</div>' +
+        (meta ? '<div class="meta">' + esc(meta) + '</div>' : '') +
+        (t.obs ? '<div class="obs">' + esc(t.obs) + '</div>' : '') +
+      '</button></div>';
+  }).join('');
+}
+
+/* ===== 4. CONCLUIR TAREFA ===== */
+$('lista').addEventListener('click', (e) => {
+  const marcar = e.target.closest('[data-marcar]');
+  const editar = e.target.closest('[data-editar]');
+  if (marcar) {
+    const id = Number(marcar.dataset.marcar);
+    const dia = hoje();
+    const f = feitas[dia] || [];
+    feitas[dia] = f.includes(id) ? f.filter((x) => x !== id) : f.concat(id);
+    salvar(); desenhar();
+  } else if (editar) {
+    abrirFormulario(Number(editar.dataset.editar));
+  }
+});
+
+/* ===== 5. FORMULÁRIO (criar e editar) ===== */
+function abrirFormulario(id) {
+  editandoId = id || null;
+  const t = tarefas.find((x) => x.id === id) || { nome: '', hora: '', obs: '', dias: [] };
+  $('tituloForm').textContent = id ? 'Editar tarefa' : 'Nova tarefa';
+  $('fNome').value = t.nome;
+  $('fHora').value = t.hora;
+  $('fObs').value = t.obs;
+  $('btnExcluir').style.display = id ? '' : 'none';
+  $('fDias').innerHTML = NOMES_DIAS.map((n, i) =>
+    '<button type="button" class="dia' + (t.dias.includes(i) ? ' ligado' : '') + '" data-dia="' + i + '">' + n + '</button>').join('');
+  $('fundo').classList.add('aberto');
+  if (!id) $('fNome').focus();
+}
+function fecharFormulario() { $('fundo').classList.remove('aberto'); }
+
+$('btnAdd').addEventListener('click', () => abrirFormulario());
+$('fundo').addEventListener('click', (e) => { if (e.target === $('fundo')) fecharFormulario(); });
+$('fDias').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-dia]');
+  if (b) b.classList.toggle('ligado');
+});
+
+$('btnSalvar').addEventListener('click', () => {
+  const nome = $('fNome').value.trim();
+  if (!nome) { $('fNome').focus(); return; }
+  const dias = [...document.querySelectorAll('.dia.ligado')].map((b) => Number(b.dataset.dia));
+  const dados = { nome, hora: $('fHora').value, obs: $('fObs').value.trim(), dias };
+  if (editandoId) {
+    const t = tarefas.find((x) => x.id === editandoId);
+    Object.assign(t, dados);
+    if (!dias.length && !t.data) t.data = hoje();
+  } else {
+    tarefas.push({ id: Date.now(), data: hoje(), ...dados });
+  }
+  salvar(); fecharFormulario(); desenhar();
+});
+
+$('btnExcluir').addEventListener('click', () => {
+  tarefas = tarefas.filter((t) => t.id !== editandoId);
+  salvar(); fecharFormulario(); desenhar();
+});
+
+/* ===== 6. INÍCIO ===== */
+carregar();
+desenhar();
+// Se o app ficar aberto de um dia para o outro, atualiza ao voltar para ele
+document.addEventListener('visibilitychange', () => { if (!document.hidden) desenhar(); });
+</script>
+</body>
+</html>
