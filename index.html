@@ -108,10 +108,8 @@ textarea { min-height: 70px; resize: vertical; }
     <input id="fHora" type="time">
     <label for="fObs">Observações</label>
     <textarea id="fObs"></textarea>
-    <label>Repetir</label>
-    <div class="dias" id="fDias"></div>
-    <div class="dica">Sem nenhum dia marcado, a tarefa vale só na data escolhida.</div>
-    <div id="fDataBox"><label for="fData">Data</label><input id="fData" type="date"></div>
+    <label for="fData">Data</label>
+    <input id="fData" type="date">
     <div class="acoes">
       <button class="excluir" id="btnExcluir">Excluir</button>
       <button class="salvar" id="btnSalvar">Salvar</button>
@@ -185,7 +183,7 @@ function desenharFuturas() {
     .sort((a, b) => a.data.localeCompare(b.data) || porHora(a, b));
   let html = '';
   if (proximas.length) html += '<div class="secao">Próximas</div>' + proximas.map((t) => linhaFutura(t, dataCurta(t.data))).join('');
-  $('lista').innerHTML = html || '<div class="vazio">Nenhuma tarefa futura. Toque em + e escolha uma data ou os dias de repetição.</div>';
+  $('lista').innerHTML = html || '<div class="vazio">Nenhuma tarefa futura. Toque em + e escolha uma data à frente.</div>';
 }
 
 // Tela "Hoje"
@@ -243,37 +241,25 @@ function abrirFormulario(id) {
   $('fHora').value = t.hora;
   $('fObs').value = t.obs;
   $('btnExcluir').style.display = id ? '' : 'none';
-  $('fDias').innerHTML = NOMES_DIAS.map((n, i) =>
-    '<button type="button" class="dia' + (t.dias.includes(i) ? ' ligado' : '') + '" data-dia="' + i + '">' + n + '</button>').join('');
-  atualizarCampoData();
   $('fundo').classList.add('aberto');
   if (!id) $('fNome').focus();
 }
 function fecharFormulario() { $('fundo').classList.remove('aberto'); }
 
-// O campo Data só aparece quando nenhum dia de repetição está marcado
-function atualizarCampoData() {
-  $('fDataBox').style.display = document.querySelector('.dia.ligado') ? 'none' : '';
-}
 document.querySelectorAll('.aba').forEach((b) => b.addEventListener('click', () => { vista = b.dataset.vista; desenhar(); }));
 
 $('btnAdd').addEventListener('click', () => abrirFormulario());
 $('fundo').addEventListener('click', (e) => { if (e.target === $('fundo')) fecharFormulario(); });
-$('fDias').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-dia]');
-  if (b) { b.classList.toggle('ligado'); atualizarCampoData(); }
-});
 
 $('btnSalvar').addEventListener('click', () => {
   const nome = $('fNome').value.trim();
   if (!nome) { $('fNome').focus(); return; }
-  const dias = [...document.querySelectorAll('.dia.ligado')].map((b) => Number(b.dataset.dia));
-  const dados = { nome, hora: $('fHora').value, obs: $('fObs').value.trim(), dias, data: $('fData').value || hoje() };
+  const dados = { nome, hora: $('fHora').value, obs: $('fObs').value.trim(), data: $('fData').value || hoje() };
   if (editandoId) {
     const t = tarefas.find((x) => x.id === editandoId);
     Object.assign(t, dados);
   } else {
-    tarefas.push({ id: Date.now(), data: hoje(), ...dados });
+    tarefas.push({ id: Date.now(), dias: [], ...dados });
   }
   salvar(); fecharFormulario(); desenhar();
 });
