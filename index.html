@@ -181,11 +181,9 @@ function linhaFutura(t, quando) {
 function desenharFuturas() {
   $('titulo').textContent = 'Tarefas futuras';
   const porHora = (a, b) => (a.hora || '99:99').localeCompare(b.hora || '99:99');
-  const fixas = tarefas.filter((t) => t.dias.length).sort(porHora);
   const proximas = tarefas.filter((t) => !t.dias.length && t.data > hoje())
     .sort((a, b) => a.data.localeCompare(b.data) || porHora(a, b));
   let html = '';
-  if (fixas.length) html += '<div class="secao">Fixas</div>' + fixas.map((t) => linhaFutura(t, t.dias.map((d) => NOMES_DIAS[d]).join(', '))).join('');
   if (proximas.length) html += '<div class="secao">Próximas</div>' + proximas.map((t) => linhaFutura(t, dataCurta(t.data))).join('');
   $('lista').innerHTML = html || '<div class="vazio">Nenhuma tarefa futura. Toque em + e escolha uma data ou os dias de repetição.</div>';
 }
