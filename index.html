@@ -52,6 +52,10 @@ h1 { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; text
 .feita .nome { text-decoration: line-through; color: var(--done); }
 .feita .meta, .feita .obs { color: var(--done); }
 .vazio { color: var(--muted); padding: 32px 0; }
+.abas { display: flex; gap: 8px; margin-bottom: 20px; }
+.aba { font: inherit; font-size: 0.9rem; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.aba.ativa { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.secao { margin: 26px 0 4px; font-size: 0.8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 
 .add {
   position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
@@ -84,8 +88,12 @@ textarea { min-height: 70px; resize: vertical; }
 </head>
 <body>
 <main>
+  <div class="abas">
+    <button class="aba ativa" data-vista="hoje">Hoje</button>
+    <button class="aba" data-vista="futuras">Futuras</button>
+  </div>
   <h1 id="titulo"></h1>
-  <div class="progresso"><span id="contagem"></span><div class="barra"><i id="barra"></i></div></div>
+  <div class="progresso" id="progresso"><span id="contagem"></span><div class="barra"><i id="barra"></i></div></div>
   <div id="lista"></div>
 </main>
 
@@ -102,7 +110,8 @@ textarea { min-height: 70px; resize: vertical; }
     <textarea id="fObs"></textarea>
     <label>Repetir</label>
     <div class="dias" id="fDias"></div>
-    <div class="dica">Sem nenhum dia marcado, a tarefa vale só para hoje.</div>
+    <div class="dica">Sem nenhum dia marcado, a tarefa vale só na data escolhida.</div>
+    <div id="fDataBox"><label for="fData">Data</label><input id="fData" type="date"></div>
     <div class="acoes">
       <button class="excluir" id="btnExcluir">Excluir</button>
       <button class="salvar" id="btnSalvar">Salvar</button>
@@ -122,6 +131,7 @@ textarea { min-height: 70px; resize: vertical; }
 let tarefas = [];
 let feitas = {};
 let editandoId = null;
+let vista = 'hoje'; // qual tela está aberta: 'hoje' ou 'futuras'
 const NOMES_DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
 function carregar() {
@@ -149,8 +159,39 @@ function tarefasDeHoje() {
     .sort((a, b) => (a.hora || '99:99').localeCompare(b.hora || '99:99'));
 }
 
-/* ===== 3. TELA DO DIA ===== */
+/* ===== 3. TELAS ===== */
+// Decide qual tela desenhar, conforme a aba escolhida
 function desenhar() {
+  document.querySelectorAll('.aba').forEach((b) => b.classList.toggle('ativa', b.dataset.vista === vista));
+  $('progresso').style.display = vista === 'hoje' ? '' : 'none';
+  if (vista === 'hoje') desenharHoje(); else desenharFuturas();
+}
+
+// Tela "Futuras": mostra as tarefas fixas e as que têm data marcada à frente
+function dataCurta(iso) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function linhaFutura(t, quando) {
+  const meta = [quando, t.hora].filter(Boolean).join('  ·  ');
+  return '<div class="tarefa"><button class="corpo" data-editar="' + t.id + '">' +
+    '<div class="nome">' + esc(t.nome) + '</div>' +
+    (meta ? '<div class="meta">' + esc(meta) + '</div>' : '') +
+    (t.obs ? '<div class="obs">' + esc(t.obs) + '</div>' : '') + '</button></div>';
+}
+function desenharFuturas() {
+  $('titulo').textContent = 'Tarefas futuras';
+  const porHora = (a, b) => (a.hora || '99:99').localeCompare(b.hora || '99:99');
+  const fixas = tarefas.filter((t) => t.dias.length).sort(porHora);
+  const proximas = tarefas.filter((t) => !t.dias.length && t.data > hoje())
+    .sort((a, b) => a.data.localeCompare(b.data) || porHora(a, b));
+  let html = '';
+  if (fixas.length) html += '<div class="secao">Fixas</div>' + fixas.map((t) => linhaFutura(t, t.dias.map((d) => NOMES_DIAS[d]).join(', '))).join('');
+  if (proximas.length) html += '<div class="secao">Próximas</div>' + proximas.map((t) => linhaFutura(t, dataCurta(t.data))).join('');
+  $('lista').innerHTML = html || '<div class="vazio">Nenhuma tarefa futura. Toque em + e escolha uma data ou os dias de repetição.</div>';
+}
+
+// Tela "Hoje"
+function desenharHoje() {
   $('titulo').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
   const lista = tarefasDeHoje();
   const feitasHoje = feitas[hoje()] || [];
@@ -200,32 +241,39 @@ function abrirFormulario(id) {
   const t = tarefas.find((x) => x.id === id) || { nome: '', hora: '', obs: '', dias: [] };
   $('tituloForm').textContent = id ? 'Editar tarefa' : 'Nova tarefa';
   $('fNome').value = t.nome;
+  $('fData').value = t.data || hoje();
   $('fHora').value = t.hora;
   $('fObs').value = t.obs;
   $('btnExcluir').style.display = id ? '' : 'none';
   $('fDias').innerHTML = NOMES_DIAS.map((n, i) =>
     '<button type="button" class="dia' + (t.dias.includes(i) ? ' ligado' : '') + '" data-dia="' + i + '">' + n + '</button>').join('');
+  atualizarCampoData();
   $('fundo').classList.add('aberto');
   if (!id) $('fNome').focus();
 }
 function fecharFormulario() { $('fundo').classList.remove('aberto'); }
 
+// O campo Data só aparece quando nenhum dia de repetição está marcado
+function atualizarCampoData() {
+  $('fDataBox').style.display = document.querySelector('.dia.ligado') ? 'none' : '';
+}
+document.querySelectorAll('.aba').forEach((b) => b.addEventListener('click', () => { vista = b.dataset.vista; desenhar(); }));
+
 $('btnAdd').addEventListener('click', () => abrirFormulario());
 $('fundo').addEventListener('click', (e) => { if (e.target === $('fundo')) fecharFormulario(); });
 $('fDias').addEventListener('click', (e) => {
   const b = e.target.closest('[data-dia]');
-  if (b) b.classList.toggle('ligado');
+  if (b) { b.classList.toggle('ligado'); atualizarCampoData(); }
 });
 
 $('btnSalvar').addEventListener('click', () => {
   const nome = $('fNome').value.trim();
   if (!nome) { $('fNome').focus(); return; }
   const dias = [...document.querySelectorAll('.dia.ligado')].map((b) => Number(b.dataset.dia));
-  const dados = { nome, hora: $('fHora').value, obs: $('fObs').value.trim(), dias };
+  const dados = { nome, hora: $('fHora').value, obs: $('fObs').value.trim(), dias, data: $('fData').value || hoje() };
   if (editandoId) {
     const t = tarefas.find((x) => x.id === editandoId);
     Object.assign(t, dados);
-    if (!dias.length && !t.data) t.data = hoje();
   } else {
     tarefas.push({ id: Date.now(), data: hoje(), ...dados });
   }
